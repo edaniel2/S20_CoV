@@ -5,6 +5,7 @@ from geopy import Point
 import mysql.connector
 import httplib
 
+#This class allows for an easy dictionary to be made when writing to the MySQL database
 class CountyData(object):
 
     def __init__(self, name, over18, medAge, perUrPop, popTot, stNum, coNum):
@@ -20,7 +21,7 @@ class CountyData(object):
         #self.numTweets
 
 
-
+#This function does not get alot of use anymore. Originally, it was being used to sort tweets into counties based on the coordinates presented in their bounding box, but the server proved to be too slow.
 def findCounty(lat,long, coNamFile):
     NonType = type(None)
     geolocator = Nominatim(user_agent = "ISIREU20EDaniel", timeout = None)
@@ -43,6 +44,7 @@ def findCounty(lat,long, coNamFile):
                     return nameFinal
     return False
 
+#This function pulls in a json file name and returns the number of tweets in it.
 def countINDIVTweets(v):
     countT = 0
     with open( v ,'r') as f:
@@ -52,6 +54,7 @@ def countINDIVTweets(v):
             countT = countT + 1
     return countT
 
+#This function counts the tweets in each file in the stateFileList, writes those counts to a tweetsPerState, and returns the total count.
 def countBATCHTweets():
     jsonmapping = json.load(open("stateFileList.json"))
     check = []
@@ -66,6 +69,7 @@ def countBATCHTweets():
         f.write("]")
     return count
 
+#This funciton is used when sorting the foundTweetsBrackets into state files.
 def fileSort():
     jsonmapping = json.load(open("stateFileList.json"))
     check = []
@@ -73,23 +77,27 @@ def fileSort():
         distros_dict = simplejson.load(f)
     caught = 0
     for tweet in distros_dict:
+        print(tweet['id'])
         place = tweet['place']
-        name = place['full_name']
-        caught = 0
-        for k in jsonmapping:
-            files = jsonmapping[k]
-            rawFile = files[0]
-            if k in name:
-                caught = 1
-                with open(rawFile, 'a') as f:
+        try:
+            name = place['full_name']
+            caught = 0
+            for k in jsonmapping:
+                files = jsonmapping[k]
+                rawFile = files[0]
+                if k in name:
+                    caught = 1
+                    with open(rawFile, 'a') as f:
+                        simplejson.dump(tweet, f)
+                        f.write(",\n")
+                    if rawFile not in check:
+                        check.append(rawFile)
+            if caught == 0:
+                with open("lostTweets.json", 'a') as f:
                     simplejson.dump(tweet, f)
                     f.write(",\n")
-                if rawFile not in check:
-                    check.append(rawFile)
-        if caught == 0:
-            with open("lostTweets.json", 'a') as f:
-                simplejson.dump(tweet, f)
-                f.write(",\n")
+        except simplejson.KeyError:
+            pass
 
     print(str(countINDIVTweets("lostTweets.json")))
     """
@@ -98,6 +106,7 @@ def fileSort():
             f.write("]")
 """
 
+#This function pulls in a file name and returns the number of individual users in that file
 def countUsers(v):
     users = []
     with open(v, 'r') as f:
@@ -111,6 +120,7 @@ def countUsers(v):
             users.append(username)
     return len(users)
 
+#This function counts the individual users in each of the state files and returns the total number of uniquie users.
 def countBATCHUsers():
     jsonmapping = json.load(open("stateFileList.json"))
     check = []
@@ -128,10 +138,10 @@ def countBATCHUsers():
         f.write("]")
     return count
 
-
+#This function is used to pull in "raw" tweet files
 def cleanData():
     NoneType = type(None)
-    with open('foundTweets7.json', 'r') as f:
+    with open('foundTweets8.json', 'r') as f:
         distros_dict = simplejson.load(f)
     count = 0
     nonUS = 0
@@ -160,6 +170,7 @@ def cleanData():
     print("nonUS: " + str(nonUS))
     print("noPlace: " + str(noPlace))
 
+#This function is also obsolete. It allowed us to find the middle of the coordinates to determine which county the tweet was made in
 def getCoord(tweet, coNameFile):
     place = tweet['place']
     bBox = place['bounding_box']
@@ -174,6 +185,7 @@ def getCoord(tweet, coNameFile):
     county = findCounty(lats, longs, coNameFile)
     return county
 
+#This function 1) determines if a tweet is already in the MySQL database, finds its county, and sends the tweet to postDB()
 def getLoc():
     mydb = mysql.connector.connect(
         host = "localhost",
@@ -182,7 +194,7 @@ def getLoc():
         database = "uscreus20"
     )
     conn = httplib.HTTPSConnection('geo.fcc.gov')
-    jsonmapping = json.load(open("testFiles.json"))
+    jsonmapping = json.load(open("stateFileList.json"))
     check = []
     for k in jsonmapping:
         files = jsonmapping[k]
@@ -235,7 +247,7 @@ def getLoc():
             check.append(rawFile)
 
 
-
+#This function is pretty much obsolete, but it allowed us to see how many tweets had points that we could use
 def countPoints():
     countP = 0
     NoneType = type(None)
@@ -257,6 +269,7 @@ def countPoints():
             countP = countP + 1
     return countP
 
+#This funciton was used to consolidate county data to be written into the CountyDataFinal files for easy access
 def compileCountyData():
     with open("StateFileList.json","r") as f:
         stateList = simplejson.load(f)
@@ -306,6 +319,7 @@ def compileCountyData():
                             simplejson.dump(c.__dict__, f4)
                             f4.write(",\n")
 
+#This funciton inserts new tweets into the MySQL database
 def postDB(tweet):
     mydb = mysql.connector.connect(
         host = "localhost",
@@ -341,13 +355,13 @@ def postDB(tweet):
 
 if __name__ == '__main__':
     #cleanData()
-    #fileSort()
+    fileSort()
     #print(str(countBATCHTweets()))
     #writePerState()
     #print(str(countINDIVTweets("./TweetsByState1/VTtweets.json")))
     #print(str(countPoints()))
     #countUsers("./TweetsByState1/VTtweets.json")
     #countBATCHUsers()
-    getLoc()
+    #getLoc()
     #compileCountyData()
     #postDB()
